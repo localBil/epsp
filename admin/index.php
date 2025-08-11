@@ -2,24 +2,21 @@
   include('../database/connection.php');
   include('includes/header.php'); 
   include('auth.php');
-          date_default_timezone_set('Asia/Rangoon');
-       $today = date('Y-m-d');
-       $select = $conn->query("SELECT * FROM appointments WHERE date_id < '$today'");
-       foreach ($select as $key => $value) {
-         $insert = $conn->query("INSERT INTO history_appointments(history_patientname,history_email,history_phonenumber,history_age,history_department_id,history_doctor_id,history_day_id,history_date,created_at,updated_at) VALUES ('".$value['patientname']."','".$value['email']."','".$value['phonenumber']."','".$value['age']."','".$value['department_id']."','".$value['doctor_id']."','".$value['day_id']."','".$value['date_id']."',now(),now())");
-       }
-       if($select->num_rows > 0) {
-        if($insert) {
-       $yes = $conn->query("DELETE FROM appointments WHERE date_id < '$today'");
-       $nice = $conn->query("DELETE FROM countt WHERE count_date < '$today'");
-         }
-       }
+  include('../includes/handle_appointment.php');
+  archive_old_appointments($conn);
+
      if(isset($_POST['change'])) {
-        $doctor_id = $conn->real_escape_string($_POST['doctor']);
-        $si = $conn->query("SELECT a.*,de.*,d.*,da.* FROM appointments as a LEFT JOIN departments as de ON a.department_id = de.departments_id LEFT JOIN doctors as d ON a.doctor_id = d.doctors_id LEFT JOIN dates as da ON a.day_id = da.dates_id WHERE a.doctor_id = '$doctor_id'");
+        $doctor_id = $_POST['doctor'];
+        $stmt = $conn->prepare("SELECT a.*,de.*,d.*,da.* FROM appointments as a LEFT JOIN departments as de ON a.department_id = de.departments_id LEFT JOIN doctors as d ON a.doctor_id = d.doctors_id LEFT JOIN dates as da ON a.day_id = da.dates_id WHERE a.doctor_id = ?");
+        $stmt->bind_param("i", $doctor_id);
+        $stmt->execute();
+        $si = $stmt->get_result();
      }else{
       $doctor_id = 1;
-       $si = $conn->query("SELECT a.*,de.*,d.*,da.* FROM appointments as a LEFT JOIN departments as de ON a.department_id = de.departments_id LEFT JOIN doctors as d ON a.doctor_id = d.doctors_id LEFT JOIN dates as da ON a.day_id = da.dates_id WHERE a.doctor_id = '$doctor_id'");
+      $stmt = $conn->prepare("SELECT a.*,de.*,d.*,da.* FROM appointments as a LEFT JOIN departments as de ON a.department_id = de.departments_id LEFT JOIN doctors as d ON a.doctor_id = d.doctors_id LEFT JOIN dates as da ON a.day_id = da.dates_id WHERE a.doctor_id = ?");
+      $stmt->bind_param("i", $doctor_id);
+      $stmt->execute();
+      $si = $stmt->get_result();
      }
 ?>
 <body class=" ">

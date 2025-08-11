@@ -3,15 +3,24 @@
   include('../database/connection.php');
     $erMes = "";
     if(!empty($_POST)) {
-    $email = $conn->real_escape_string($_POST['email']);
-    $password = $conn->real_escape_string(md5($_POST['password']));
-     $hello = $conn->query("SELECT * FROM admin WHERE admin_email = '$email' AND admin_password = '$password'");
+    $email = $_POST['email'];
+    $password = $_POST['password'];
+
+    $stmt = $conn->prepare("SELECT * FROM admin WHERE admin_email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $hello = $stmt->get_result();
+
      if($hello->num_rows > 0) {
          $yes = $hello->fetch_assoc();
-        $_SESSION['admin_email'] = $email;
-        $_SESSION['admin_id'] = $conn->real_escape_string($yes['admin_id']);
-        header("location: index.php");
-        exit;
+         if (password_verify($password, $yes['admin_password'])) {
+            $_SESSION['admin_email'] = $email;
+            $_SESSION['admin_id'] = $yes['admin_id'];
+            header("location: index.php");
+            exit;
+         } else {
+            $erMes = "Email et mot de passe ne correspondent pas";
+         }
       }else{  
         $erMes = "Email et mot de passe ne correspondent pas";
       }

@@ -25,9 +25,9 @@
             </a>
           </li>
           <li>
-            <a href="card.php">
+            <a href="doctor_cards.php">
               <i class="tim-icons icon-atom"></i>
-              <p>card</p>
+              <p>Doctor Cards</p>
             </a>
           </li>
           <li>
