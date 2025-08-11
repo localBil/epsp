@@ -2,45 +2,72 @@
   include('../database/connection.php');
   include('includes/header.php'); 
   include('auth.php');
-  $doctor =  $conn->query("SELECT de.*,d.*,da.* FROM doctors as d LEFT JOIN departments as de ON d.depid = de.departments_id LEFT JOIN  dates as da ON d.day_id = da.dates_id");
+  $doctor_query = "
+    SELECT d.doctors_id, d.name, d.degree, d.sitting_time, de.depname, GROUP_CONCAT(da.datename SEPARATOR ', ') as available_days
+    FROM doctors d
+    LEFT JOIN departments de ON d.depid = de.departments_id
+    LEFT JOIN doctor_availability da_ref ON d.doctors_id = da_ref.doctor_id
+    LEFT JOIN dates da ON da_ref.day_id = da.dates_id
+    GROUP BY d.doctors_id
+  ";
+  $doctor =  $conn->query($doctor_query);
   $department = $conn->query("SELECT * FROM departments");
   $output = "";
   $date = $conn->query("SELECT * FROM dates");
   $errMsg = $erMsg = "";
      if(isset($_POST['add'])) {
-       $doctorname = $conn->real_escape_string($_POST['doctorname']);
-       $degree = $conn->real_escape_string($_POST['doctordegree']);
-       $department_id = $conn->real_escape_string($_POST['doctordepartment']);
-       $sitting_time = $conn->real_escape_string($_POST['sitting_time']);
+       $doctorname = $_POST['doctorname'];
+       $degree = $_POST['doctordegree'];
+       $department_id = $_POST['doctordepartment'];
+       $sitting_time = $_POST['sitting_time'];
        if(empty($_POST['doctorday'])) {
         $errMsg = "Day Field cannot be blank;";
        }else{
-       $day_id = $_POST['doctorday'];
-        $days = implode(',',$day_id);
+       $day_ids = $_POST['doctorday'];
        }
       
        if(empty($errMsg)) {
-       $yes = $conn->query("INSERT INTO doctors(depid,name,degree,sitting_time,day_id,created_at,updated_at) VALUES ('$department_id','$doctorname','$degree','$sitting_time','$days',now(),now())");
+        $stmt = $conn->prepare("INSERT INTO doctors(depid,name,degree,sitting_time,created_at,updated_at) VALUES (?,?,?,?,now(),now())");
+        $stmt->bind_param("isss", $department_id, $doctorname, $degree, $sitting_time);
+        $yes = $stmt->execute();
+        $doctor_id = $conn->insert_id;
+
+        foreach($day_ids as $day_id) {
+            $stmt = $conn->prepare("INSERT INTO doctor_availability(doctor_id, day_id) VALUES (?,?)");
+            $stmt->bind_param("ii", $doctor_id, $day_id);
+            $stmt->execute();
+        }
          if($yes) {
           header("location:doctors.php?succ");
          }
        }
      }
      if(isset($_POST['update'])) {
-      $edit_id = $conn->real_escape_string($_POST['hiddeneditid']);
-       $doctorname = $conn->real_escape_string($_POST['editdoctorname']);
-       $degree = $conn->real_escape_string($_POST['editdoctordegree']);
-       $department_id = $conn->real_escape_string($_POST['editdoctordepartment']);
-       $sitting_time = $conn->real_escape_string($_POST['editsittingtime']);
+      $edit_id = $_POST['hiddeneditid'];
+       $doctorname = $_POST['editdoctorname'];
+       $degree = $_POST['editdoctordegree'];
+       $department_id = $_POST['editdoctordepartment'];
+       $sitting_time = $_POST['editsittingtime'];
         if(empty($_POST['editdoctorday'])) {
         $erMsg = "Day Field cannot be blank;";
        }else{
-       $day_id = $_POST['editdoctorday'];
-        $days = implode(',',$day_id);
+       $day_ids = $_POST['editdoctorday'];
        }
       
        if(empty($erMsg)) {
-       $yes = $conn->query("UPDATE doctors SET depid='$department_id',name='$doctorname',degree='$degree',sitting_time='$sitting_time',day_id='$days' WHERE doctors_id = '$edit_id'");
+        $stmt = $conn->prepare("UPDATE doctors SET depid=?,name=?,degree=?,sitting_time=? WHERE doctors_id = ?");
+        $stmt->bind_param("isssi", $department_id, $doctorname, $degree, $sitting_time, $edit_id);
+        $yes = $stmt->execute();
+
+        $stmt = $conn->prepare("DELETE FROM doctor_availability WHERE doctor_id = ?");
+        $stmt->bind_param("i", $edit_id);
+        $stmt->execute();
+
+        foreach($day_ids as $day_id) {
+            $stmt = $conn->prepare("INSERT INTO doctor_availability(doctor_id, day_id) VALUES (?,?)");
+            $stmt->bind_param("ii", $edit_id, $day_id);
+            $stmt->execute();
+        }
          if($yes) {
           header("location:doctors.php?update");
          }
@@ -214,24 +241,13 @@
                         </tr>                      
                     </thead>
                     <tbody class="text-primary depart">
-                        <?php foreach($doctor as $key => $d) {
-                             $day = $d['day_id'];
-                             $yes = $conn->query("SELECT * FROM dates WHERE dates_id IN ($day)");
-                             
-                         ?>
+                        <?php foreach($doctor as $key => $d) { ?>
                           <tr id="nice<?php echo $d['doctors_id']?>">
                              <td><?php echo $key+1 ?></td>
                              <td><?php echo $d['name']; ?></td>
                              <td><?php echo $d['degree']; ?></td>
                              <td><?php echo $d['depname']; ?></td>
-                            <td>  
-                           <?php foreach ($yes as $great) { 
-                                  $string = explode(',',$great['datename']);
-                                  $array = implode(' ',$string);
-                                echo ($array.'<br>'); 
-                              } ?>
-                                  
-                               </td>
+                             <td><?php echo $d['available_days']; ?></td>
                              <td><?php echo $d['sitting_time']?></td>
                               <td><i class="tim-icons icon-pencil text-success editer" id="<?php echo $d['doctors_id']?>"></i> &nbsp; &nbsp;
                                  <i class="tim-icons icon-trash-simple text-danger trasher" id="<?php echo $d['doctors_id']?>">
